@@ -1,36 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ⚡ VoxaAI  
 
-## Getting Started
+A modern **AI-powered journaling and productivity app** built with **Next.js 15, TypeScript, Tailwind CSS, ShadCN, Firebase, and Lucide Icons**.  
+VoxaAI helps you manage your **daily thoughts, tasks, goals, and projects** with **AI features, mood tracking, and seamless cloud sync**.
 
-First, run the development server:
+---
 
+## ✨ Features  
+
+- **🔒 Authentication & User Management** – Firebase Auth with email + OAuth.  
+- **📅 Calendar Integration** – Plan and track events with a clean UI.  
+- **📝 AI Voice Journaling** – Convert your voice to structured journal entries.  
+- **🎯 Goal Tracking** – Track personal and professional goals in real-time.  
+- **📂 Project Management** – Add and organize projects, stored in Firebase.  
+- **🎨 Modern UI** – Built using **ShadCN + Tailwind CSS** with theme toggling.  
+- **📊 Analytics Dashboard** – Insights into mood, productivity, and habits.  
+- **☁️ Cloud Backup** – Sync your notes and goals securely with Firebase.  
+- **🌙 Dark Mode & Themes** – Modern theme toggler with light/dark modes.  
+
+---
+
+## 🛠️ Tech Stack  
+
+- **Frontend:** [Next.js 15](https://nextjs.org/), TypeScript, Tailwind CSS, ShadCN  
+- **Backend/Database:** Firebase (Firestore)  
+- **Icons:** [Lucide Icons](https://lucide.dev/)  
+- **UI Components:** ShadCN/UI & Radix Primitives  
+- **Version Control:** Git & GitHub  
+
+---
+
+## 🚀 Getting Started  
+
+### **1. Clone the Repository**
 ```bash
+git clone https://github.com/nvk170405/VoxaAI.git
+cd VoxaAI
+
+
+2. Install Dependencies
+bash
+Copy
+Edit
+npm install
+# or
+yarn install
+
+
+
+3. Add Environment Variables
+Create a .env.local file in the project root and add your Firebase keys:
+
+
+NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-auth-domain
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-storage-bucket
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-messaging-sender-id
+NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
+
+
+4. Run the Development Server
+bash
+Copy
+Edit
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Visit http://localhost:3000 to view your app.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+📌 Project Structure
+csharp
+Copy
+Edit
+VoxaAI/
+├── app/                # Next.js app directory (pages, routes)
+├── components/         # UI & functional components (ShadCN, custom)
+├── context/            # Global state (theme, auth)
+├── hooks/              # Custom hooks
+├── lib/                # Firebase & utilities
+├── public/             # Static assets
+└── README.md           # Project documentation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+🤝 Contributing
+Contributions are welcome!
 
-## Learn More
+Fork this repo
 
-To learn more about Next.js, take a look at the following resources:
+Create a new branch: git checkout -b feature-name
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Commit your changes: git commit -m "Add feature"
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Push and open a Pull Request
 
-## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+📧 Contact
+Developed by Navketan Singh
+Feel free to reach out for collaboration or feedback!
