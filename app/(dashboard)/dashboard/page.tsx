@@ -232,8 +232,8 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background font-montserrat">
       <div className="flex">
-        {/* Fixed Sidebar */}
-        <div className="fixed left-0 top-0 h-screen z-40">
+        {/* Sidebar - fixed on desktop, sheet drawer on mobile */}
+        <div className="hidden lg:block fixed left-0 top-0 h-screen z-40">
           <DashboardSidebar
             activeView={activeView}
             onViewChange={handleViewChange}
@@ -241,15 +241,24 @@ const Dashboard = () => {
           />
         </div>
 
-        {/* Main content area with left margin to account for fixed sidebar */}
-        <div className="flex-1 ml-64 flex flex-col min-h-screen">
-          {/* Fixed Header */}
+        {/* Mobile sidebar trigger */}
+        <div className="lg:hidden">
+          <DashboardSidebar
+            activeView={activeView}
+            onViewChange={handleViewChange}
+            userPlan={userPlan}
+          />
+        </div>
+
+        {/* Main content area - full width on mobile, with margin on desktop */}
+        <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
+          {/* Sticky Header */}
           <div className="sticky top-0 z-30">
             <DashboardHeader userPlan={userPlan} />
           </div>
 
           {/* Scrollable content */}
-          <main className="flex-1 p-6 overflow-auto">
+          <main className="flex-1 p-4 lg:p-6 overflow-auto">
             {renderMainContent}
           </main>
         </div>
