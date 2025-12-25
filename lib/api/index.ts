@@ -71,29 +71,65 @@ export interface JournalFilters {
 }
 
 export const journalsApi = {
-    getAll: (filters?: JournalFilters) => {
+    getAll: async (filters?: JournalFilters) => {
         const params = new URLSearchParams();
         if (filters) {
             Object.entries(filters).forEach(([key, value]) => {
                 if (value !== undefined) params.append(key, String(value));
             });
         }
-        return apiFetch(`/api/journals?${params}`);
+        const response = await apiFetch<{ success: boolean; data: Array<{ _id: string } & Record<string, unknown>> }>(`/api/journals?${params}`);
+        // Transform _id to id for frontend
+        if (response.success && response.data) {
+            response.data = response.data.map((item) => ({
+                ...item,
+                id: item._id,
+            })) as typeof response.data;
+        }
+        return response;
     },
 
-    getById: (id: string) => apiFetch(`/api/journals/${id}`),
+    getById: async (id: string) => {
+        const response = await apiFetch<{ success: boolean; data: { _id: string } & Record<string, unknown> }>(`/api/journals/${id}`);
+        // Transform _id to id for frontend
+        if (response.success && response.data) {
+            response.data = {
+                ...response.data,
+                id: response.data._id,
+            } as typeof response.data;
+        }
+        return response;
+    },
 
-    create: (data: JournalInput) =>
-        apiFetch('/api/journals', {
+    create: async (data: JournalInput) => {
+        const response = await apiFetch<{ success: boolean; data: { _id: string } & Record<string, unknown> }>('/api/journals', {
             method: 'POST',
             body: JSON.stringify(data),
-        }),
+        });
+        // Transform _id to id for frontend
+        if (response.success && response.data) {
+            response.data = {
+                ...response.data,
+                id: response.data._id,
+            } as typeof response.data;
+        }
+        return response;
+    },
 
-    update: (id: string, data: Partial<JournalInput>) =>
-        apiFetch(`/api/journals/${id}`, {
+    update: async (id: string, data: Partial<JournalInput>) => {
+        const response = await apiFetch<{ success: boolean; data: { _id: string } & Record<string, unknown> }>(`/api/journals/${id}`, {
             method: 'PUT',
             body: JSON.stringify(data),
-        }),
+        });
+        // Transform _id to id for frontend
+        if (response.success && response.data) {
+            response.data = {
+                ...response.data,
+                id: response.data._id,
+            } as typeof response.data;
+        }
+        return response;
+    },
 
     delete: (id: string) =>
         apiFetch(`/api/journals/${id}`, { method: 'DELETE' }),

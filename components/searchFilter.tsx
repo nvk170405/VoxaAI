@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   FileText,
   Loader2
 } from "lucide-react";
@@ -35,7 +37,9 @@ interface SearchFiltersProps {
 }
 
 // Search result item component
-const SearchResultItem = ({ entry, onClear }: { entry: JournalEntry; onClear: () => void }) => {
+const SearchResultItem = ({ entry }: { entry: JournalEntry }) => {
+  const router = useRouter();
+
   const getMoodColor = (mood: string) => {
     const config = MOOD_CONFIG[mood as keyof typeof MOOD_CONFIG];
     return config?.color || "bg-neutral-400";
@@ -47,6 +51,7 @@ const SearchResultItem = ({ entry, onClear }: { entry: JournalEntry; onClear: ()
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ x: 4 }}
+      onClick={() => router.push(`/journal/${entry.id}`)}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
@@ -66,6 +71,7 @@ const SearchResultItem = ({ entry, onClear }: { entry: JournalEntry; onClear: ()
             {entry.transcription}
           </p>
         </div>
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
       </div>
       {entry.tags.length > 0 && (
         <div className="flex gap-1 mt-2 flex-wrap">
@@ -396,7 +402,6 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
                     <SearchResultItem
                       key={entry.id}
                       entry={entry}
-                      onClear={clearAllFilters}
                     />
                   ))}
                 </div>

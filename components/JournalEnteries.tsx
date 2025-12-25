@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,8 @@ import {
   Edit,
   Crown,
   MoreHorizontal,
-  Loader2
+  Loader2,
+  ChevronRight
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -42,6 +44,7 @@ const JournalEntryCard = React.memo(({
   playingId,
   onPlayAudio,
   onDelete,
+  onClick,
   isDeleting
 }: {
   entry: JournalEntry;
@@ -50,6 +53,7 @@ const JournalEntryCard = React.memo(({
   playingId: string | null;
   onPlayAudio: (id: string) => void;
   onDelete: (id: string) => void;
+  onClick: (id: string) => void;
   isDeleting: boolean;
 }) => {
   const getMoodColor = useCallback((mood: string) => {
@@ -65,7 +69,8 @@ const JournalEntryCard = React.memo(({
       exit={{ opacity: 0, y: -20 }}
       transition={{ delay: index * 0.1, duration: 0.3 }}
       whileHover={{ scale: 1.01 }}
-      className="p-4 bg-muted/50 border border-border rounded-xl hover:bg-muted transition-colors"
+      className="p-4 bg-muted/50 border border-border rounded-xl hover:bg-muted transition-colors cursor-pointer group"
+      onClick={() => onClick(entry.id)}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
@@ -199,6 +204,7 @@ const JournalEntriesSkeleton = () => (
 
 // Main component wrapped with React.memo
 export const JournalEntries = React.memo(({ userPlan, preview = false }: JournalEntriesProps) => {
+  const router = useRouter();
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -224,6 +230,10 @@ export const JournalEntries = React.memo(({ userPlan, preview = false }: Journal
       setDeletingId(null);
     }
   }, [deleteJournal]);
+
+  const handleClick = useCallback((id: string) => {
+    router.push(`/journal/${id}`);
+  }, [router]);
 
   return (
     <Card className="border-border bg-card overflow-hidden">
@@ -271,6 +281,7 @@ export const JournalEntries = React.memo(({ userPlan, preview = false }: Journal
                 playingId={playingId}
                 onPlayAudio={handlePlayAudio}
                 onDelete={handleDelete}
+                onClick={handleClick}
                 isDeleting={deletingId === entry.id}
               />
             ))}
