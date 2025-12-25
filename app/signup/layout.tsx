@@ -1,27 +1,28 @@
-import type { Metadata } from "next"
-import { ThemeProvider } from "@/components/theme-provider"
-import { ModeToggle } from "@/components/theme-toggler"
-import Footer from "@/components/Footer"
+'use client';
 
+import { AuthProvider } from '@/context/AuthContext';
+import { ThemeProvider } from "@/components/theme-provider";
+import { ModeToggle } from "@/components/theme-toggler";
+import { PublicRoute } from '@/components/auth/PublicRoute';
+import Footer from "@/components/Footer";
 
-
-export const metadata: Metadata = {
-  title: "Sign Up",
-  description: "Pricing page for a SaaS product using Shadcn UI",
-}
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function SignupLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning={true}>
-      <body>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <AuthProvider>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+      >
+        <PublicRoute>
           <nav className="pt-2 px-4 flex justify-end">
             <ModeToggle />
           </nav>
           {children}
-        </ThemeProvider>
-        <Footer/>
-      </body>
-    </html>
-  )
+          <Footer />
+        </PublicRoute>
+      </ThemeProvider>
+    </AuthProvider>
+  );
 }
