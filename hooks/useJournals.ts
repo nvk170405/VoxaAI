@@ -1,124 +1,169 @@
-// ================================
-// useJournals Hook
-// ================================
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import {
-    getJournals,
-    createJournal,
-    updateJournal,
-    deleteJournal,
-    getJournalCount
-} from '@/lib/firebase/journals';
-import type { JournalEntry, JournalInput, JournalFilters } from '@/types';
+import { journalsApi, JournalFilters } from '@/lib/api';
+import type { JournalEntry } from '@/types';
 
 interface UseJournalsReturn {
     journals: JournalEntry[];
-    isLoading: boolean;
+    loading: boolean;
     error: string | null;
-    totalCount: number;
-    createEntry: (input: JournalInput) => Promise<JournalEntry | null>;
-    updateEntry: (id: string, updates: Partial<JournalInput>) => Promise<void>;
-    deleteEntry: (id: string) => Promise<void>;
-    refresh: () => Promise<void>;
-    applyFilters: (filters: JournalFilters) => Promise<void>;
+    stats: {
+        totalJournals: number;
+        journalsThisWeek: number;
+        moodBreakdown: Record<string, number>;
+    } | null;
+    fetchJournals: (filters?: JournalFilters) => Promise<void>;
+    createJournal: (data: Omit<JournalEntry, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => Promise<JournalEntry | null>;
+    updateJournal: (id: string, data: Partial<JournalEntry>) => Promise<JournalEntry | null>;
+    deleteJournal: (id: string) => Promise<boolean>;
+    refreshStats: () => Promise<void>;
 }
 
 export const useJournals = (initialFilters?: JournalFilters): UseJournalsReturn => {
-    const { user } = useAuth() as { user: { uid: string } | null };
+    const { user } = useAuth();
     const [journals, setJournals] = useState<JournalEntry[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [totalCount, setTotalCount] = useState(0);
-    const [filters, setFilters] = useState<JournalFilters | undefined>(initialFilters);
+    const [stats, setStats] = useState<UseJournalsReturn['stats']>(null);
 
-    const fetchJournals = useCallback(async () => {
-        if (!user?.uid) {
+    const fetchJournals = useCallback(async (filters?: JournalFilters) => {
+        if (!user) {
             setJournals([]);
-            setIsLoading(false);
+            setLoading(false);
             return;
         }
 
-        setIsLoading(true);
-        setError(null);
-
         try {
-            const [data, count] = await Promise.all([
-                getJournals(user.uid, filters),
-                getJournalCount(user.uid),
-            ]);
-            setJournals(data);
-            setTotalCount(count);
+            setLoading(true);
+            setError(null);
+            const response = await journalsApi.getAll(filters || initialFilters) as {
+                success: boolean;
+                data: JournalEntry[];
+            };
+
+            if (response.success) {
+                setJournals(response.data);
+            }
         } catch (err) {
             console.error('Error fetching journals:', err);
-            setError('Failed to load journal entries');
+            setError(err instanceof Error ? err.message : 'Failed to fetch journals');
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
-    }, [user?.uid, filters]);
+    }, [user, initialFilters]);
 
-    useEffect(() => {
-        fetchJournals();
-    }, [fetchJournals]);
-
-    const createEntry = async (input: JournalInput): Promise<JournalEntry | null> => {
-        if (!user?.uid) return null;
+    const refreshStats = useCallback(async () => {
+        if (!user) return;
 
         try {
-            const newEntry = await createJournal(user.uid, input);
-            setJournals(prev => [newEntry, ...prev]);
-            setTotalCount(prev => prev + 1);
-            return newEntry;
+            const response = await journalsApi.getStats() as {
+                success: boolean;
+                data: UseJournalsReturn['stats'];
+            };
+
+            if (response.success) {
+                setStats(response.data);
+            }
+        } catch (err) {
+            console.error('Error fetching journal stats:', err);
+        }
+    }, [user]);
+
+    const createJournal = useCallback(async (
+        data: Omit<JournalEntry, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
+    ): Promise<JournalEntry | null> => {
+        if (!user) return null;
+
+        try {
+            setError(null);
+            const response = await journalsApi.create({
+                title: data.title,
+                transcription: data.transcription,
+                audioUrl: data.audioUrl,
+                date: data.date?.toISOString(),
+                mood: data.mood,
+                tags: data.tags,
+                sentiment: data.sentiment,
+            }) as { success: boolean; data: JournalEntry };
+
+            if (response.success) {
+                setJournals(prev => [response.data, ...prev]);
+                return response.data;
+            }
+            return null;
         } catch (err) {
             console.error('Error creating journal:', err);
-            setError('Failed to create journal entry');
+            setError(err instanceof Error ? err.message : 'Failed to create journal');
             return null;
         }
-    };
+    }, [user]);
 
-    const updateEntry = async (id: string, updates: Partial<JournalInput>): Promise<void> => {
+    const updateJournal = useCallback(async (
+        id: string,
+        data: Partial<JournalEntry>
+    ): Promise<JournalEntry | null> => {
+        if (!user) return null;
+
         try {
-            await updateJournal(id, updates);
-            setJournals(prev =>
-                prev.map(j => j.id === id ? { ...j, ...updates, updatedAt: new Date() } : j)
-            );
+            setError(null);
+            const response = await journalsApi.update(id, {
+                title: data.title,
+                transcription: data.transcription,
+                audioUrl: data.audioUrl,
+                date: data.date?.toISOString(),
+                mood: data.mood,
+                tags: data.tags,
+                sentiment: data.sentiment,
+            }) as { success: boolean; data: JournalEntry };
+
+            if (response.success) {
+                setJournals(prev => prev.map(j => j.id === id ? response.data : j));
+                return response.data;
+            }
+            return null;
         } catch (err) {
             console.error('Error updating journal:', err);
-            setError('Failed to update journal entry');
+            setError(err instanceof Error ? err.message : 'Failed to update journal');
+            return null;
         }
-    };
+    }, [user]);
 
-    const deleteEntry = async (id: string): Promise<void> => {
+    const deleteJournal = useCallback(async (id: string): Promise<boolean> => {
+        if (!user) return false;
+
         try {
-            await deleteJournal(id);
-            setJournals(prev => prev.filter(j => j.id !== id));
-            setTotalCount(prev => prev - 1);
+            setError(null);
+            const response = await journalsApi.delete(id) as { success: boolean };
+
+            if (response.success) {
+                setJournals(prev => prev.filter(j => j.id !== id));
+                return true;
+            }
+            return false;
         } catch (err) {
             console.error('Error deleting journal:', err);
-            setError('Failed to delete journal entry');
+            setError(err instanceof Error ? err.message : 'Failed to delete journal');
+            return false;
         }
-    };
+    }, [user]);
 
-    const refresh = async (): Promise<void> => {
-        await fetchJournals();
-    };
-
-    const applyFilters = async (newFilters: JournalFilters): Promise<void> => {
-        setFilters(newFilters);
-    };
+    // Fetch on mount and when user changes
+    useEffect(() => {
+        fetchJournals();
+        refreshStats();
+    }, [fetchJournals, refreshStats]);
 
     return {
         journals,
-        isLoading,
+        loading,
         error,
-        totalCount,
-        createEntry,
-        updateEntry,
-        deleteEntry,
-        refresh,
-        applyFilters,
+        stats,
+        fetchJournals,
+        createJournal,
+        updateJournal,
+        deleteJournal,
+        refreshStats,
     };
 };

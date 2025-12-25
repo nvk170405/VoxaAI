@@ -1,192 +1,204 @@
-// ================================
-// useGoals Hook
-// ================================
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import {
-    getGoals,
-    getActiveGoals,
-    createGoal,
-    updateGoal,
-    updateGoalProgress,
-    updateGoalStatus,
-    deleteGoal,
-    getGoalStats
-} from '@/lib/firebase/goals';
-import type { Goal, GoalInput, GoalStatus } from '@/types';
+import { goalsApi, GoalFilters } from '@/lib/api';
+import type { Goal, GoalCategory } from '@/types';
 
 interface GoalStats {
-    totalGoals: number;
-    activeGoals: number;
-    completedGoals: number;
+    total: number;
+    active: number;
+    completed: number;
+    paused: number;
     averageProgress: number;
+    categoryBreakdown: Record<string, number>;
 }
 
 interface UseGoalsReturn {
     goals: Goal[];
-    activeGoals: Goal[];
-    stats: GoalStats | null;
-    isLoading: boolean;
+    loading: boolean;
     error: string | null;
-    createNewGoal: (input: GoalInput) => Promise<Goal | null>;
-    updateGoalDetails: (id: string, updates: Partial<GoalInput>) => Promise<void>;
-    incrementProgress: (id: string, amount?: number) => Promise<void>;
-    setProgress: (id: string, progress: number) => Promise<void>;
-    changeStatus: (id: string, status: GoalStatus) => Promise<void>;
-    removeGoal: (id: string) => Promise<void>;
-    refresh: () => Promise<void>;
+    stats: GoalStats | null;
+    fetchGoals: (filters?: GoalFilters) => Promise<void>;
+    createGoal: (data: Omit<Goal, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'progress' | 'status'>) => Promise<Goal | null>;
+    updateGoal: (id: string, data: Partial<Goal>) => Promise<Goal | null>;
+    updateProgress: (id: string, progress: number) => Promise<Goal | null>;
+    deleteGoal: (id: string) => Promise<boolean>;
+    refreshStats: () => Promise<void>;
 }
 
-export const useGoals = (): UseGoalsReturn => {
-    const { user, subscription } = useAuth() as { user: { uid: string } | null; subscription: string | null };
+export const useGoals = (initialFilters?: GoalFilters): UseGoalsReturn => {
+    const { user, subscription } = useAuth();
     const [goals, setGoals] = useState<Goal[]>([]);
-    const [stats, setStats] = useState<GoalStats | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [stats, setStats] = useState<GoalStats | null>(null);
 
-    // Premium-only feature check
+    // Goals are a premium feature
     const isPremium = subscription === 'premium';
 
-    const fetchGoals = useCallback(async () => {
-        if (!user?.uid || !isPremium) {
+    const fetchGoals = useCallback(async (filters?: GoalFilters) => {
+        if (!user || !isPremium) {
             setGoals([]);
-            setIsLoading(false);
+            setLoading(false);
             return;
         }
 
-        setIsLoading(true);
-        setError(null);
-
         try {
-            const [goalsData, statsData] = await Promise.all([
-                getGoals(user.uid),
-                getGoalStats(user.uid),
-            ]);
+            setLoading(true);
+            setError(null);
+            const response = await goalsApi.getAll(filters || initialFilters) as {
+                success: boolean;
+                data: Goal[];
+            };
 
-            setGoals(goalsData);
-            setStats(statsData);
+            if (response.success) {
+                setGoals(response.data);
+            }
         } catch (err) {
             console.error('Error fetching goals:', err);
-            setError('Failed to load goals');
+            setError(err instanceof Error ? err.message : 'Failed to fetch goals');
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
-    }, [user?.uid, isPremium]);
+    }, [user, isPremium, initialFilters]);
 
-    useEffect(() => {
-        fetchGoals();
-    }, [fetchGoals]);
-
-    const activeGoals = goals.filter(g => g.status === 'active');
-
-    const createNewGoal = async (input: GoalInput): Promise<Goal | null> => {
-        if (!user?.uid || !isPremium) return null;
+    const refreshStats = useCallback(async () => {
+        if (!user || !isPremium) return;
 
         try {
-            const newGoal = await createGoal(user.uid, input);
-            setGoals(prev => [...prev, newGoal]);
+            const response = await goalsApi.getStats() as {
+                success: boolean;
+                data: GoalStats;
+            };
 
-            // Update stats
-            const statsData = await getGoalStats(user.uid);
-            setStats(statsData);
+            if (response.success) {
+                setStats(response.data);
+            }
+        } catch (err) {
+            console.error('Error fetching goal stats:', err);
+        }
+    }, [user, isPremium]);
 
-            return newGoal;
+    const createGoal = useCallback(async (
+        data: Omit<Goal, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'progress' | 'status'>
+    ): Promise<Goal | null> => {
+        if (!user || !isPremium) return null;
+
+        try {
+            setError(null);
+            const response = await goalsApi.create({
+                title: data.title,
+                description: data.description,
+                category: data.category as GoalCategory,
+                target: data.target,
+                deadline: data.deadline?.toISOString(),
+            }) as { success: boolean; data: Goal };
+
+            if (response.success) {
+                setGoals(prev => [response.data, ...prev]);
+                return response.data;
+            }
+            return null;
         } catch (err) {
             console.error('Error creating goal:', err);
-            setError('Failed to create goal');
+            setError(err instanceof Error ? err.message : 'Failed to create goal');
             return null;
         }
-    };
+    }, [user, isPremium]);
 
-    const updateGoalDetails = async (id: string, updates: Partial<GoalInput>): Promise<void> => {
+    const updateGoal = useCallback(async (
+        id: string,
+        data: Partial<Goal>
+    ): Promise<Goal | null> => {
+        if (!user || !isPremium) return null;
+
         try {
-            await updateGoal(id, updates);
-            setGoals(prev =>
-                prev.map(g => g.id === id ? { ...g, ...updates, updatedAt: new Date() } : g)
-            );
+            setError(null);
+            const response = await goalsApi.update(id, {
+                title: data.title,
+                description: data.description,
+                category: data.category as GoalCategory,
+                progress: data.progress,
+                target: data.target,
+                deadline: data.deadline?.toISOString(),
+                status: data.status,
+            }) as { success: boolean; data: Goal };
+
+            if (response.success) {
+                setGoals(prev => prev.map(g => g.id === id ? response.data : g));
+                return response.data;
+            }
+            return null;
         } catch (err) {
             console.error('Error updating goal:', err);
-            setError('Failed to update goal');
+            setError(err instanceof Error ? err.message : 'Failed to update goal');
+            return null;
         }
-    };
+    }, [user, isPremium]);
 
-    const incrementProgress = async (id: string, amount: number = 1): Promise<void> => {
-        const goal = goals.find(g => g.id === id);
-        if (!goal) return;
+    const updateProgress = useCallback(async (
+        id: string,
+        progress: number
+    ): Promise<Goal | null> => {
+        if (!user || !isPremium) return null;
 
-        const newProgress = Math.min(goal.progress + amount, goal.target);
-        await setProgress(id, newProgress);
-    };
-
-    const setProgress = async (id: string, progress: number): Promise<void> => {
         try {
-            await updateGoalProgress(id, progress);
+            setError(null);
+            const response = await goalsApi.updateProgress(id, progress) as {
+                success: boolean;
+                data: Goal;
+            };
 
-            const goal = goals.find(g => g.id === id);
-            const newStatus: GoalStatus = goal && progress >= goal.target ? 'completed' : 'active';
-
-            setGoals(prev =>
-                prev.map(g => g.id === id ? { ...g, progress, status: newStatus, updatedAt: new Date() } : g)
-            );
-
-            // Update stats if goal was completed
-            if (newStatus === 'completed' && user?.uid) {
-                const statsData = await getGoalStats(user.uid);
-                setStats(statsData);
+            if (response.success) {
+                setGoals(prev => prev.map(g => g.id === id ? response.data : g));
+                // Refresh stats after progress update
+                refreshStats();
+                return response.data;
             }
+            return null;
         } catch (err) {
-            console.error('Error updating progress:', err);
-            setError('Failed to update progress');
+            console.error('Error updating goal progress:', err);
+            setError(err instanceof Error ? err.message : 'Failed to update progress');
+            return null;
         }
-    };
+    }, [user, isPremium, refreshStats]);
 
-    const changeStatus = async (id: string, status: GoalStatus): Promise<void> => {
+    const deleteGoal = useCallback(async (id: string): Promise<boolean> => {
+        if (!user || !isPremium) return false;
+
         try {
-            await updateGoalStatus(id, status);
-            setGoals(prev =>
-                prev.map(g => g.id === id ? { ...g, status, updatedAt: new Date() } : g)
-            );
-        } catch (err) {
-            console.error('Error changing status:', err);
-            setError('Failed to change goal status');
-        }
-    };
+            setError(null);
+            const response = await goalsApi.delete(id) as { success: boolean };
 
-    const removeGoal = async (id: string): Promise<void> => {
-        try {
-            await deleteGoal(id);
-            setGoals(prev => prev.filter(g => g.id !== id));
-
-            // Update stats
-            if (user?.uid) {
-                const statsData = await getGoalStats(user.uid);
-                setStats(statsData);
+            if (response.success) {
+                setGoals(prev => prev.filter(g => g.id !== id));
+                return true;
             }
+            return false;
         } catch (err) {
             console.error('Error deleting goal:', err);
-            setError('Failed to delete goal');
+            setError(err instanceof Error ? err.message : 'Failed to delete goal');
+            return false;
         }
-    };
+    }, [user, isPremium]);
 
-    const refresh = async (): Promise<void> => {
-        await fetchGoals();
-    };
+    // Fetch on mount and when user changes
+    useEffect(() => {
+        fetchGoals();
+        refreshStats();
+    }, [fetchGoals, refreshStats]);
 
     return {
         goals,
-        activeGoals,
-        stats,
-        isLoading,
+        loading,
         error,
-        createNewGoal,
-        updateGoalDetails,
-        incrementProgress,
-        setProgress,
-        changeStatus,
-        removeGoal,
-        refresh,
+        stats,
+        fetchGoals,
+        createGoal,
+        updateGoal,
+        updateProgress,
+        deleteGoal,
+        refreshStats,
     };
 };
