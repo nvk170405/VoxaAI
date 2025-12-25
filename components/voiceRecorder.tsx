@@ -1,32 +1,85 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { motion } from "motion/react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Mic, MicOff, Square, Play, Pause, Download, Save, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useJournals } from "@/hooks/useJournals";
-import { transcribeAudio } from "@/lib/services/transcription";
 
 interface VoiceRecorderProps {
   isRecording: boolean;
   onToggleRecording: (recording: boolean) => void;
 }
 
+// Check if Web Speech API is available
+const isSpeechRecognitionSupported = () => {
+  if (typeof window === 'undefined') return false;
+  return 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+};
+
 export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderProps) => {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [transcription, setTranscription] = useState("");
-  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState(""); // Real-time display
+  const [finalTranscript, setFinalTranscript] = useState(""); // Final result
   const [isSaving, setIsSaving] = useState(false);
   const [title, setTitle] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   // Use the journals hook for saving
   const { createJournal } = useJournals();
+
+  // Initialize Speech Recognition
+  useEffect(() => {
+    if (isSpeechRecognitionSupported()) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event) => {
+        let interimTranscript = '';
+        let finalText = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalText += transcript + ' ';
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        if (finalText) {
+          setFinalTranscript(prev => prev + finalText);
+        }
+        setLiveTranscript(interimTranscript);
+      };
+
+      recognitionRef.current.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        if (event.error !== 'no-speech') {
+          toast({
+            title: "Speech Recognition Error",
+            description: event.error,
+            variant: "destructive",
+          });
+        }
+      };
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
 
   const startRecording = async () => {
     try {
@@ -35,6 +88,10 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
+      // Reset transcripts
+      setLiveTranscript("");
+      setFinalTranscript("");
+
       mediaRecorder.ondataavailable = (event) => {
         audioChunksRef.current.push(event.data);
       };
@@ -42,10 +99,29 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" });
         setAudioBlob(audioBlob);
-        performTranscription(audioBlob);
+        // Stop speech recognition
+        if (recognitionRef.current) {
+          recognitionRef.current.stop();
+        }
+        // Set the title
+        setTitle(`Voice Journal - ${new Date().toLocaleDateString()}`);
+        toast({
+          title: "Recording complete",
+          description: "Review your transcription and save",
+        });
       };
 
       mediaRecorder.start();
+
+      // Start speech recognition for real-time transcription
+      if (recognitionRef.current && isSpeechRecognitionSupported()) {
+        try {
+          recognitionRef.current.start();
+        } catch (e) {
+          console.log('Speech recognition already started');
+        }
+      }
+
       onToggleRecording(true);
       toast({
         title: "Recording started",
@@ -63,38 +139,13 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
+      // Stop all tracks
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
       onToggleRecording(false);
-      toast({
-        title: "Recording stopped",
-        description: "Processing your audio...",
-      });
     }
-  };
-
-  const performTranscription = async (blob: Blob) => {
-    setIsTranscribing(true);
-    try {
-      const result = await transcribeAudio(blob);
-      if (result.success && result.text) {
-        setTranscription(result.text);
-        setTitle(`Voice Journal - ${new Date().toLocaleDateString()}`);
-        toast({
-          title: "Transcription complete",
-          description: result.usingFallback
-            ? "Using simulated transcription (add OpenAI key for real)"
-            : "Your audio has been converted to text",
-        });
-      } else {
-        throw new Error(result.error || "Transcription failed");
-      }
-    } catch (error) {
-      toast({
-        title: "Transcription failed",
-        description: error instanceof Error ? error.message : "Could not transcribe audio",
-        variant: "destructive",
-      });
-    } finally {
-      setIsTranscribing(false);
+    // Stop speech recognition
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
     }
   };
 
@@ -121,7 +172,9 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
   };
 
   const handleSaveEntry = useCallback(async () => {
-    if (!transcription || !title.trim()) {
+    const transcriptionText = finalTranscript.trim() || liveTranscript.trim();
+
+    if (!transcriptionText || !title.trim()) {
       toast({
         title: "Missing information",
         description: "Please add a title for your entry",
@@ -134,7 +187,7 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
     try {
       const result = await createJournal({
         title: title.trim(),
-        transcription,
+        transcription: transcriptionText,
         date: new Date(),
         tags: [],
       });
@@ -145,7 +198,8 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
           description: "Your journal entry has been saved successfully",
         });
         // Reset form
-        setTranscription("");
+        setFinalTranscript("");
+        setLiveTranscript("");
         setTitle("");
         setAudioBlob(null);
       } else {
@@ -160,7 +214,11 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
     } finally {
       setIsSaving(false);
     }
-  }, [transcription, title, createJournal]);
+  }, [finalTranscript, liveTranscript, title, createJournal]);
+
+  // Combined transcript for display
+  const displayTranscript = finalTranscript + liveTranscript;
+  const hasTranscript = displayTranscript.trim().length > 0;
 
   return (
     <Card className="border-border bg-card overflow-hidden">
@@ -174,21 +232,58 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
             <Mic className="h-4 w-4 text-background" />
           </motion.div>
           Voice Recorder
+          {!isSpeechRecognitionSupported() && (
+            <span className="text-xs text-muted-foreground ml-2">(Real-time not supported)</span>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Real-time Transcription Display - ABOVE the mic */}
+        <AnimatePresence>
+          {(isRecording || hasTranscript) && (
+            <motion.div
+              className="p-4 bg-muted rounded-xl border border-border min-h-[80px]"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                {isRecording && (
+                  <motion.div
+                    className="w-2 h-2 rounded-full bg-red-500"
+                    animate={{ opacity: [1, 0.5, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  />
+                )}
+                <span className="text-xs font-medium text-muted-foreground">
+                  {isRecording ? 'Listening...' : 'Transcription'}
+                </span>
+              </div>
+              <p className="text-sm leading-relaxed">
+                <span className="text-foreground">{finalTranscript}</span>
+                {isRecording && (
+                  <span className="text-muted-foreground italic">{liveTranscript}</span>
+                )}
+                {!hasTranscript && isRecording && (
+                  <span className="text-muted-foreground italic">Start speaking...</span>
+                )}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Recording Button Area */}
         <div className="flex flex-col items-center space-y-6">
           <motion.div
             className={`w-28 h-28 rounded-full flex items-center justify-center border-2 transition-colors ${isRecording
-              ? "border-foreground bg-foreground/5"
+              ? "border-red-500 bg-red-500/10"
               : "border-border bg-muted"
               }`}
             animate={isRecording ? { scale: [1, 1.05, 1] } : { scale: 1 }}
             transition={isRecording ? { repeat: Infinity, duration: 1.5 } : {}}
           >
             {isRecording ? (
-              <Mic className="h-10 w-10 text-foreground" />
+              <Mic className="h-10 w-10 text-red-500" />
             ) : (
               <MicOff className="h-10 w-10 text-muted-foreground" />
             )}
@@ -264,7 +359,7 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
               {[...Array(7)].map((_, i) => (
                 <motion.div
                   key={i}
-                  className="w-1 bg-foreground rounded-full"
+                  className="w-1 bg-red-500 rounded-full"
                   animate={{
                     height: [8, 24, 8],
                   }}
@@ -280,60 +375,48 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
           </motion.div>
         )}
 
-        {/* Transcription Output */}
-        {(transcription || isTranscribing) && (
+        {/* Save Section - appears after recording stops with transcript */}
+        {!isRecording && hasTranscript && (
           <motion.div
             className="p-4 bg-muted rounded-xl border border-border space-y-4"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
           >
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-sm">Transcription</h4>
-            </div>
-
-            {isTranscribing ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <motion.div
-                  className="w-4 h-4 border-2 border-foreground/30 border-t-foreground rounded-full"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                />
-                <span className="text-sm">Processing audio...</span>
-              </div>
-            ) : (
-              <>
-                <Input
-                  placeholder="Entry title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="mb-2"
-                />
-                <p className="text-sm text-muted-foreground leading-relaxed">{transcription}</p>
-                <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-                  <Button
-                    onClick={handleSaveEntry}
-                    disabled={isSaving || !title.trim()}
-                    className="w-full bg-foreground text-background hover:bg-foreground/90"
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Entry
-                      </>
-                    )}
-                  </Button>
-                </motion.div>
-              </>
-            )}
+            <Input
+              placeholder="Entry title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+              <Button
+                onClick={handleSaveEntry}
+                disabled={isSaving || !title.trim()}
+                className="w-full bg-foreground text-background hover:bg-foreground/90"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Entry
+                  </>
+                )}
+              </Button>
+            </motion.div>
           </motion.div>
         )}
       </CardContent>
     </Card>
   );
 };
+
+// TypeScript declaration for Web Speech API
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+  }
+}
