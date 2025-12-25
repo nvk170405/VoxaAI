@@ -134,16 +134,9 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
           break;
       }
 
-      // Fetch with filters
-      await fetchJournals({
-        search: searchQuery.trim() || undefined,
-        mood: selectedMood || undefined,
-        startDate,
-        limit: 10,
-      });
-
-      // Filter results locally for more precision
-      let results = journals;
+      // Use the journals from hook and filter locally
+      // This prevents re-fetching which causes flickering
+      let results = [...journals];
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -159,19 +152,69 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
         results = results.filter((entry) => entry.mood === selectedMood);
       }
 
+      if (startDate) {
+        const startDateTime = new Date(startDate).getTime();
+        results = results.filter((entry) => new Date(entry.date).getTime() >= startDateTime);
+      }
+
       setSearchResults(results.slice(0, 10));
     } catch (error) {
       console.error("Search error:", error);
     } finally {
       setIsSearching(false);
     }
-  }, [searchQuery, selectedMood, dateRange, fetchJournals, journals]);
+  }, [searchQuery, selectedMood, dateRange, journals]);
 
-  // Debounced search on query change
+  // Debounced search on query change - only depends on filter values, not handleSearch
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchQuery.trim().length >= 2 || selectedMood || dateRange) {
-        handleSearch();
+        // Inline filter logic to avoid dependency issues
+        let results = [...journals];
+
+        if (searchQuery.trim()) {
+          const query = searchQuery.toLowerCase();
+          results = results.filter(
+            (entry) =>
+              entry.title.toLowerCase().includes(query) ||
+              entry.transcription.toLowerCase().includes(query) ||
+              entry.tags.some((tag) => tag.toLowerCase().includes(query))
+          );
+        }
+
+        if (selectedMood) {
+          results = results.filter((entry) => entry.mood === selectedMood);
+        }
+
+        if (dateRange) {
+          const now = new Date();
+          let startDateTime = 0;
+
+          switch (dateRange) {
+            case "today":
+              startDateTime = new Date(now.setHours(0, 0, 0, 0)).getTime();
+              break;
+            case "week":
+              startDateTime = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+              break;
+            case "month":
+              startDateTime = now.getTime() - 30 * 24 * 60 * 60 * 1000;
+              break;
+            case "quarter":
+              startDateTime = now.getTime() - 90 * 24 * 60 * 60 * 1000;
+              break;
+            case "year":
+              startDateTime = now.getTime() - 365 * 24 * 60 * 60 * 1000;
+              break;
+          }
+
+          if (startDateTime > 0) {
+            results = results.filter((entry) => new Date(entry.date).getTime() >= startDateTime);
+          }
+        }
+
+        setSearchResults(results.slice(0, 10));
+        setHasSearched(true);
       } else if (!searchQuery.trim() && !selectedMood && !dateRange) {
         setSearchResults([]);
         setHasSearched(false);
@@ -179,7 +222,7 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, selectedMood, dateRange, handleSearch]);
+  }, [searchQuery, selectedMood, dateRange, journals]);
 
   const clearAllFilters = () => {
     setSearchQuery("");
