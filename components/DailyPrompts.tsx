@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { motion } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,35 +12,32 @@ import {
   ArrowRight,
   Sparkles
 } from "lucide-react";
+import type { SubscriptionPlan } from "@/types";
+import { BASIC_PROMPTS, PREMIUM_PROMPTS } from "@/lib/constants";
 
 interface DailyPromptsProps {
-  userPlan: "basic" | "premium";
+  userPlan: SubscriptionPlan;
   preview?: boolean;
 }
 
-export const DailyPrompts = ({ userPlan, preview = false }: DailyPromptsProps) => {
+export const DailyPrompts = React.memo(({ userPlan, preview = false }: DailyPromptsProps) => {
   const [currentPrompt, setCurrentPrompt] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const basicPrompts = [
-    "What are you grateful for today?",
-    "Describe your mood in three words.",
-    "What was the highlight of your day?",
-    "What challenge did you overcome today?",
-    "How did you show kindness today?",
-  ];
+  // Memoize prompts based on user plan
+  const prompts = useMemo(() =>
+    userPlan === "premium" ? PREMIUM_PROMPTS : BASIC_PROMPTS,
+    [userPlan]
+  );
 
-  const premiumPrompts = [
-    "Reflecting on your recent journal entries, what patterns do you notice in your emotional responses to stress?",
-    "Based on your goals, what small action could you take today to move closer to your aspirations?",
-    "Considering your mood trends this week, what activities or thoughts seem to boost your wellbeing?",
-    "How has your perspective on [personal challenge] evolved over the past month?",
-    "What would you tell your past self from a year ago, given what you've learned about yourself?",
-  ];
+  // Memoize current prompt text
+  const currentPromptText = useMemo(() =>
+    prompts[currentPrompt],
+    [prompts, currentPrompt]
+  );
 
-  const prompts = userPlan === "premium" ? premiumPrompts : basicPrompts;
-
-  const generateNewPrompt = () => {
+  // Memoize callback
+  const generateNewPrompt = useCallback(() => {
     if (userPlan === "premium") {
       setIsGenerating(true);
       setTimeout(() => {
@@ -50,7 +47,7 @@ export const DailyPrompts = ({ userPlan, preview = false }: DailyPromptsProps) =
     } else {
       setCurrentPrompt((prev) => (prev + 1) % prompts.length);
     }
-  };
+  }, [userPlan, prompts.length]);
 
   return (
     <Card className="border-border bg-card overflow-hidden">
@@ -98,7 +95,7 @@ export const DailyPrompts = ({ userPlan, preview = false }: DailyPromptsProps) =
             </div>
           ) : (
             <p className="text-lg font-medium leading-relaxed">
-              {prompts[currentPrompt]}
+              {currentPromptText}
             </p>
           )}
         </motion.div>
@@ -157,4 +154,6 @@ export const DailyPrompts = ({ userPlan, preview = false }: DailyPromptsProps) =
       </CardContent>
     </Card>
   );
-};
+});
+
+DailyPrompts.displayName = "DailyPrompts";

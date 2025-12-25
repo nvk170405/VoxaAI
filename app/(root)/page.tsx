@@ -5,7 +5,8 @@ import { CircleCheck } from "lucide-react";
 import React from "react";
 import Footer from "@/components/Footer";
 import Link from "next/link";
-import { useRouter } from "next/navigation"; // Corrected import
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Compare } from "@/components/ui/compare";
 
 const CheckItem = ({ text }: { text: string }) => (
@@ -95,7 +96,14 @@ export default function Home() {
         </div>
         <section className="bg-white pt-40 -mb-80">
           <div className="max-w-7xl mx-auto px-6">
-            <img src="./wavy2.png" className="w-full" alt="Background" />
+            <Image
+              src="/wavy2.png"
+              className="w-full"
+              alt="Background"
+              width={1400}
+              height={400}
+              priority
+            />
           </div>
         </section>
       </section>
@@ -103,36 +111,36 @@ export default function Home() {
 
 
       <section className="font-montserrat pb-60 pt-60 mb-72 gap-10 relative bg-white ">
-        
-          
-          <div className="my-20 mx-18 md:mx-20 lg:mx-72 md:text-left">
-            <h2 className="absolute pr-96 mr-72 pb-40 text-6xl font-bold text-gray-900">
-              Goal Tracking Made Easy
-            </h2>
-            <div className="pr-96 mr-96 mt-40 absolute text-lg text-wrap text-gray-600">
-            Keeping track of your personal and professional goals has never been easier. Our AI-powered system analyzes your journal entries and automatically extracts key tasks, milestones, and objectives.<br/>
-            <br/>
-              📌 Automated Task Extraction – No need to manually write down tasks. The AI identifies actionable goals and organizes them for you.<br/>
-              <br/>
-              ⏳ Progress Monitoring – View your achievements over time and track your consistency.<br/>
-              <br/>
-              🎯 Personalized Recommendations – Get AI-driven insights on how to optimize your daily workflow based on your past entries.<br/>
-              <br/>
-              
-            </div>
-            
+
+
+        <div className="my-20 mx-18 md:mx-20 lg:mx-72 md:text-left">
+          <h2 className="absolute pr-96 mr-72 pb-40 text-6xl font-bold text-gray-900">
+            Goal Tracking Made Easy
+          </h2>
+          <div className="pr-96 mr-96 mt-40 absolute text-lg text-wrap text-gray-600">
+            Keeping track of your personal and professional goals has never been easier. Our AI-powered system analyzes your journal entries and automatically extracts key tasks, milestones, and objectives.<br />
+            <br />
+            📌 Automated Task Extraction – No need to manually write down tasks. The AI identifies actionable goals and organizes them for you.<br />
+            <br />
+            ⏳ Progress Monitoring – View your achievements over time and track your consistency.<br />
+            <br />
+            🎯 Personalized Recommendations – Get AI-driven insights on how to optimize your daily workflow based on your past entries.<br />
+            <br />
+
           </div>
-       
-      <div className=" absolute right-36 p-4 border rounded-3xl dark:bg-neutral-900 bg-black border-neutral-200 dark:border-neutral-800 ">
-      <Compare
-        firstImage="https://assets.aceternity.com/code-problem.png"
-        secondImage="https://assets.aceternity.com/code-solution.png"
-        firstImageClassName="object-cover object-left-top"
-        secondImageClassname="object-cover object-left-top"
-        className="h-[450px] w-[400px] md:h-[400px] md:w-[350px]"
-        slideMode="hover"
-      />
-      </div>
+
+        </div>
+
+        <div className=" absolute right-36 p-4 border rounded-3xl dark:bg-neutral-900 bg-black border-neutral-200 dark:border-neutral-800 ">
+          <Compare
+            firstImage="https://assets.aceternity.com/code-problem.png"
+            secondImage="https://assets.aceternity.com/code-solution.png"
+            firstImageClassName="object-cover object-left-top"
+            secondImageClassname="object-cover object-left-top"
+            className="h-[450px] w-[400px] md:h-[400px] md:w-[350px]"
+            slideMode="hover"
+          />
+        </div>
       </section>
 
 

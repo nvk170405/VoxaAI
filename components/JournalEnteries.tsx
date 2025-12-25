@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,9 +23,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { SubscriptionPlan } from "@/types";
+import { MOOD_CONFIG } from "@/lib/constants";
 
 interface JournalEntriesProps {
-  userPlan: "basic" | "premium";
+  userPlan: SubscriptionPlan;
   preview?: boolean;
 }
 
@@ -40,10 +42,139 @@ interface JournalEntry {
   sentiment?: "positive" | "negative" | "neutral";
 }
 
-export const JournalEntries = ({ userPlan, preview = false }: JournalEntriesProps) => {
+// Memoized single entry component
+const JournalEntryCard = React.memo(({
+  entry,
+  index,
+  userPlan,
+  playingId,
+  onPlayAudio
+}: {
+  entry: JournalEntry;
+  index: number;
+  userPlan: SubscriptionPlan;
+  playingId: string | null;
+  onPlayAudio: (id: string) => void;
+}) => {
+  const getMoodColor = useCallback((mood: string) => {
+    const config = MOOD_CONFIG[mood as keyof typeof MOOD_CONFIG];
+    return config?.color || "bg-neutral-400";
+  }, []);
+
+  return (
+    <motion.div
+      key={entry.id}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ delay: index * 0.1, duration: 0.3 }}
+      whileHover={{ scale: 1.01 }}
+      className="p-4 bg-muted/50 border border-border rounded-xl hover:bg-muted transition-colors"
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex-1">
+          <h3 className="font-medium">{entry.title}</h3>
+          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+            <div className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {entry.date.toLocaleDateString()}
+            </div>
+            {entry.mood && (
+              <div className="flex items-center gap-1.5">
+                <motion.div
+                  className={`w-2.5 h-2.5 rounded-full ${getMoodColor(entry.mood)}`}
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+                <span className="capitalize">{entry.mood}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => onPlayAudio(entry.id)}
+            >
+              {playingId === entry.id ? (
+                <Pause className="h-4 w-4" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+            </Button>
+          </motion.div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </DropdownMenuItem>
+              {userPlan === "premium" && (
+                <DropdownMenuItem>
+                  <Share className="h-4 w-4 mr-2" />
+                  Share
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem className="text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+        {entry.transcription}
+      </p>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        {entry.tags.map((tag, tagIndex) => (
+          <motion.div
+            key={tag}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: index * 0.1 + tagIndex * 0.05 }}
+          >
+            <Badge variant="outline" className="text-xs bg-background">
+              <Hash className="h-2.5 w-2.5 mr-1" />
+              {tag}
+            </Badge>
+          </motion.div>
+        ))}
+
+        {userPlan === "premium" && entry.sentiment && (
+          <Badge
+            variant="outline"
+            className="text-xs ml-auto"
+          >
+            <Crown className="h-2.5 w-2.5 mr-1" />
+            AI: {entry.sentiment}
+          </Badge>
+        )}
+      </div>
+    </motion.div>
+  );
+});
+
+JournalEntryCard.displayName = "JournalEntryCard";
+
+// Main component wrapped with React.memo
+export const JournalEntries = React.memo(({ userPlan, preview = false }: JournalEntriesProps) => {
   const [playingId, setPlayingId] = useState<string | null>(null);
 
-  const mockEntries: JournalEntry[] = [
+  // Memoize mock entries - in production this would come from a hook
+  const mockEntries: JournalEntry[] = useMemo(() => [
     {
       id: "1",
       title: "Morning Reflections",
@@ -71,31 +202,23 @@ export const JournalEntries = ({ userPlan, preview = false }: JournalEntriesProp
       tags: ["weekend", "art"],
       sentiment: userPlan === "premium" ? "positive" : undefined,
     },
-  ];
+  ], [userPlan]);
 
-  const displayedEntries = preview ? mockEntries.slice(0, 2) : mockEntries;
+  // Memoize displayed entries based on preview mode
+  const displayedEntries = useMemo(() =>
+    preview ? mockEntries.slice(0, 2) : mockEntries,
+    [preview, mockEntries]
+  );
 
-  const playAudio = (entryId: string) => {
+  // Memoize callback to prevent re-renders
+  const handlePlayAudio = useCallback((entryId: string) => {
     if (playingId === entryId) {
       setPlayingId(null);
     } else {
       setPlayingId(entryId);
       setTimeout(() => setPlayingId(null), 3000);
     }
-  };
-
-  const getMoodColor = (mood: string) => {
-    const moodColors: Record<string, string> = {
-      happy: "bg-neutral-300 dark:bg-neutral-600",
-      calm: "bg-neutral-400 dark:bg-neutral-500",
-      excited: "bg-neutral-200 dark:bg-neutral-700",
-      sad: "bg-neutral-600 dark:bg-neutral-400",
-      angry: "bg-neutral-800 dark:bg-neutral-200",
-      anxious: "bg-neutral-500",
-      grateful: "bg-neutral-300 dark:bg-neutral-600",
-    };
-    return moodColors[mood] || "bg-neutral-400";
-  };
+  }, [playingId]);
 
   return (
     <Card className="border-border bg-card overflow-hidden">
@@ -121,108 +244,14 @@ export const JournalEntries = ({ userPlan, preview = false }: JournalEntriesProp
         <div className="space-y-3">
           <AnimatePresence>
             {displayedEntries.map((entry, index) => (
-              <motion.div
+              <JournalEntryCard
                 key={entry.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ delay: index * 0.1, duration: 0.3 }}
-                whileHover={{ scale: 1.01 }}
-                className="p-4 bg-muted/50 border border-border rounded-xl hover:bg-muted transition-colors"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="font-medium">{entry.title}</h3>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {entry.date.toLocaleDateString()}
-                      </div>
-                      {entry.mood && (
-                        <div className="flex items-center gap-1.5">
-                          <motion.div
-                            className={`w-2.5 h-2.5 rounded-full ${getMoodColor(entry.mood)}`}
-                            animate={{ scale: [1, 1.2, 1] }}
-                            transition={{ duration: 2, repeat: Infinity }}
-                          />
-                          <span className="capitalize">{entry.mood}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => playAudio(entry.id)}
-                      >
-                        {playingId === entry.id ? (
-                          <Pause className="h-4 w-4" />
-                        ) : (
-                          <Play className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </motion.div>
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        {userPlan === "premium" && (
-                          <DropdownMenuItem>
-                            <Share className="h-4 w-4 mr-2" />
-                            Share
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem className="text-destructive">
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-
-                <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                  {entry.transcription}
-                </p>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  {entry.tags.map((tag, tagIndex) => (
-                    <motion.div
-                      key={tag}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: index * 0.1 + tagIndex * 0.05 }}
-                    >
-                      <Badge variant="outline" className="text-xs bg-background">
-                        <Hash className="h-2.5 w-2.5 mr-1" />
-                        {tag}
-                      </Badge>
-                    </motion.div>
-                  ))}
-
-                  {userPlan === "premium" && entry.sentiment && (
-                    <Badge
-                      variant="outline"
-                      className="text-xs ml-auto"
-                    >
-                      <Crown className="h-2.5 w-2.5 mr-1" />
-                      AI: {entry.sentiment}
-                    </Badge>
-                  )}
-                </div>
-              </motion.div>
+                entry={entry}
+                index={index}
+                userPlan={userPlan}
+                playingId={playingId}
+                onPlayAudio={handlePlayAudio}
+              />
             ))}
           </AnimatePresence>
 
@@ -241,4 +270,6 @@ export const JournalEntries = ({ userPlan, preview = false }: JournalEntriesProp
       </CardContent>
     </Card>
   );
-};
+});
+
+JournalEntries.displayName = "JournalEntries";
