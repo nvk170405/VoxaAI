@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Heart,
   Smile,
@@ -12,51 +13,42 @@ import {
   Frown,
   Crown,
   TrendingUp,
-  Brain
+  Brain,
+  Loader2
 } from "lucide-react";
-import type { SubscriptionPlan, MoodType } from "@/types";
-import { MOOD_CONFIG } from "@/lib/constants";
+import type { SubscriptionPlan, MoodType, MoodEntry } from "@/types";
+import { useMoods } from "@/hooks/useMoods";
 
 interface MoodTrackerProps {
   userPlan: SubscriptionPlan;
   preview?: boolean;
 }
 
-interface MoodEntry {
-  date: Date;
-  mood: string;
-  intensity: number;
-  sentiment?: "positive" | "negative" | "neutral";
-}
-
-interface MoodStats {
-  positivePercentage: number;
-  averageIntensity: number;
-  streak: number;
-}
-
 // Memoized mood button component
 const MoodButton = React.memo(({
   mood,
   isSelected,
-  onSelect
+  onSelect,
+  disabled
 }: {
   mood: { name: string; icon: React.ComponentType<{ className?: string }>; label: string };
   isSelected: boolean;
   onSelect: (name: string) => void;
+  disabled?: boolean;
 }) => {
   const Icon = mood.icon;
 
   return (
     <motion.div
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
+      whileHover={{ scale: disabled ? 1 : 1.05 }}
+      whileTap={{ scale: disabled ? 1 : 0.95 }}
     >
       <Button
         variant="outline"
+        disabled={disabled}
         className={`h-16 w-full flex-col gap-1.5 ${isSelected
-            ? "bg-foreground text-background border-foreground hover:bg-foreground/90 hover:text-background"
-            : "hover:bg-muted"
+          ? "bg-foreground text-background border-foreground hover:bg-foreground/90 hover:text-background"
+          : "hover:bg-muted"
           }`}
         onClick={() => onSelect(mood.name)}
       >
@@ -94,7 +86,7 @@ const MoodHistoryItem = React.memo(({
       />
       <span className="text-sm capitalize font-medium">{entry.mood}</span>
       <span className="text-xs text-muted-foreground">
-        {entry.date.toLocaleDateString()}
+        {new Date(entry.date).toLocaleDateString()}
       </span>
     </div>
     <div className="flex items-center gap-2">
@@ -110,13 +102,26 @@ const MoodHistoryItem = React.memo(({
 
 MoodHistoryItem.displayName = "MoodHistoryItem";
 
+// Loading skeleton for mood history
+const MoodHistorySkeleton = () => (
+  <div className="space-y-2">
+    {[1, 2, 3].map((i) => (
+      <Skeleton key={i} className="h-12 w-full rounded-lg" />
+    ))}
+  </div>
+);
+
 // Main component wrapped with React.memo
 export const MoodTracker = React.memo(({ userPlan, preview = false }: MoodTrackerProps) => {
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [moodIntensity, setMoodIntensity] = useState(5);
+  const [isLogging, setIsLogging] = useState(false);
+
+  // Use real data from backend
+  const { moods, loading, error, stats, logMood: logMoodToBackend, todaysMood } = useMoods();
 
   // Memoize moods configuration
-  const moods = useMemo(() => [
+  const moodOptions = useMemo(() => [
     { name: "happy", icon: Smile, label: "Happy" },
     { name: "calm", icon: Meh, label: "Calm" },
     { name: "excited", icon: Smile, label: "Excited" },
@@ -126,36 +131,10 @@ export const MoodTracker = React.memo(({ userPlan, preview = false }: MoodTracke
     { name: "grateful", icon: Heart, label: "Grateful" },
   ], []);
 
-  // Memoize mock mood history
-  const mockMoodHistory: MoodEntry[] = useMemo(() => [
-    { date: new Date(2024, 0, 15), mood: "grateful", intensity: 8, sentiment: userPlan === "premium" ? "positive" : undefined },
-    { date: new Date(2024, 0, 14), mood: "anxious", intensity: 6, sentiment: userPlan === "premium" ? "negative" : undefined },
-    { date: new Date(2024, 0, 13), mood: "excited", intensity: 9, sentiment: userPlan === "premium" ? "positive" : undefined },
-    { date: new Date(2024, 0, 12), mood: "calm", intensity: 7, sentiment: userPlan === "premium" ? "neutral" : undefined },
-  ], [userPlan]);
-
-  // Memoize stats calculation
-  const stats: MoodStats | null = useMemo(() => {
-    if (userPlan !== "premium") return null;
-
-    const positiveCount = mockMoodHistory.filter(entry =>
-      ["happy", "excited", "grateful", "calm"].includes(entry.mood)
-    ).length;
-
-    const percentage = Math.round((positiveCount / mockMoodHistory.length) * 100);
-    const avgIntensity = Math.round(mockMoodHistory.reduce((sum, entry) => sum + entry.intensity, 0) / mockMoodHistory.length);
-
-    return {
-      positivePercentage: percentage,
-      averageIntensity: avgIntensity,
-      streak: 3,
-    };
-  }, [userPlan, mockMoodHistory]);
-
   // Memoize displayed entries
   const displayedHistory = useMemo(() =>
-    preview ? mockMoodHistory.slice(0, 3) : mockMoodHistory.slice(0, 5),
-    [preview, mockMoodHistory]
+    preview ? moods.slice(0, 3) : moods.slice(0, 5),
+    [preview, moods]
   );
 
   // Memoize callbacks
@@ -167,13 +146,20 @@ export const MoodTracker = React.memo(({ userPlan, preview = false }: MoodTracke
     setMoodIntensity(Number(e.target.value));
   }, []);
 
-  const logMood = useCallback(() => {
+  const handleLogMood = useCallback(async () => {
     if (selectedMood) {
-      console.log(`Logged mood: ${selectedMood} with intensity ${moodIntensity}`);
-      setSelectedMood(null);
-      setMoodIntensity(5);
+      setIsLogging(true);
+      try {
+        await logMoodToBackend(selectedMood as MoodType, moodIntensity);
+        setSelectedMood(null);
+        setMoodIntensity(5);
+      } catch (err) {
+        console.error('Failed to log mood:', err);
+      } finally {
+        setIsLogging(false);
+      }
     }
-  }, [selectedMood, moodIntensity]);
+  }, [selectedMood, moodIntensity, logMoodToBackend]);
 
   return (
     <Card className="border-border bg-card overflow-hidden">
@@ -199,12 +185,23 @@ export const MoodTracker = React.memo(({ userPlan, preview = false }: MoodTracke
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!preview && (
+        {/* Today's mood indicator */}
+        {todaysMood && (
+          <div className="p-3 bg-muted/50 rounded-lg border border-border">
+            <p className="text-xs text-muted-foreground mb-1">Today's mood</p>
+            <div className="flex items-center gap-2">
+              <span className="capitalize font-medium">{todaysMood.mood}</span>
+              <span className="text-sm text-muted-foreground">• {todaysMood.intensity}/10</span>
+            </div>
+          </div>
+        )}
+
+        {!preview && !todaysMood && (
           <>
             <div>
               <p className="text-sm font-medium mb-3">How are you feeling today?</p>
               <div className="grid grid-cols-4 gap-2">
-                {moods.slice(0, 8).map((mood, index) => (
+                {moodOptions.slice(0, 8).map((mood, index) => (
                   <motion.div
                     key={mood.name}
                     initial={{ opacity: 0, y: 10 }}
@@ -215,6 +212,7 @@ export const MoodTracker = React.memo(({ userPlan, preview = false }: MoodTracke
                       mood={mood}
                       isSelected={selectedMood === mood.name}
                       onSelect={handleMoodSelect}
+                      disabled={isLogging}
                     />
                   </motion.div>
                 ))}
@@ -239,6 +237,7 @@ export const MoodTracker = React.memo(({ userPlan, preview = false }: MoodTracke
                       value={moodIntensity}
                       onChange={handleIntensityChange}
                       className="flex-1 accent-foreground"
+                      disabled={isLogging}
                     />
                     <motion.span
                       className="text-sm font-medium w-8 text-center bg-foreground text-background rounded-md py-1"
@@ -251,10 +250,18 @@ export const MoodTracker = React.memo(({ userPlan, preview = false }: MoodTracke
                   </div>
                   <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
                     <Button
-                      onClick={logMood}
+                      onClick={handleLogMood}
+                      disabled={isLogging}
                       className="w-full mt-4 bg-foreground text-background hover:bg-foreground/90"
                     >
-                      Log Mood
+                      {isLogging ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Logging...
+                        </>
+                      ) : (
+                        'Log Mood'
+                      )}
                     </Button>
                   </motion.div>
                 </motion.div>
@@ -295,16 +302,26 @@ export const MoodTracker = React.memo(({ userPlan, preview = false }: MoodTracke
 
         <div>
           <p className="text-sm font-medium mb-3">Recent Moods</p>
-          <div className="space-y-2">
-            {displayedHistory.map((entry, index) => (
-              <MoodHistoryItem
-                key={index}
-                entry={entry}
-                index={index}
-                userPlan={userPlan}
-              />
-            ))}
-          </div>
+          {loading ? (
+            <MoodHistorySkeleton />
+          ) : error ? (
+            <p className="text-sm text-destructive">{error}</p>
+          ) : displayedHistory.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No moods logged yet. Start tracking your mood!
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {displayedHistory.map((entry, index) => (
+                <MoodHistoryItem
+                  key={entry.id || index}
+                  entry={entry}
+                  index={index}
+                  userPlan={userPlan}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {userPlan === "basic" && (

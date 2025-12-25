@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mic, MicOff, Square, Play, Pause, Download, Save } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Mic, MicOff, Square, Play, Pause, Download, Save, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useJournals } from "@/hooks/useJournals";
 
 interface VoiceRecorderProps {
   isRecording: boolean;
@@ -17,8 +19,13 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
   const [isPlaying, setIsPlaying] = useState(false);
   const [transcription, setTranscription] = useState("");
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [title, setTitle] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+
+  // Use the journals hook for saving
+  const { createJournal } = useJournals();
 
   const startRecording = async () => {
     try {
@@ -68,6 +75,7 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
     setTimeout(() => {
       setTranscription("This is a simulated transcription of your voice recording. In a real app, this would be processed by a speech-to-text service.");
       setIsTranscribing(false);
+      setTitle(`Voice Journal - ${new Date().toLocaleDateString()}`);
       toast({
         title: "Transcription complete",
         description: "Your audio has been converted to text",
@@ -97,6 +105,48 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
     }
   };
 
+  const handleSaveEntry = useCallback(async () => {
+    if (!transcription || !title.trim()) {
+      toast({
+        title: "Missing information",
+        description: "Please add a title for your entry",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const result = await createJournal({
+        title: title.trim(),
+        transcription,
+        date: new Date(),
+        tags: [],
+      });
+
+      if (result) {
+        toast({
+          title: "Entry saved!",
+          description: "Your journal entry has been saved successfully",
+        });
+        // Reset form
+        setTranscription("");
+        setTitle("");
+        setAudioBlob(null);
+      } else {
+        throw new Error("Failed to save");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save entry. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [transcription, title, createJournal]);
+
   return (
     <Card className="border-border bg-card overflow-hidden">
       <CardHeader className="pb-4">
@@ -116,8 +166,8 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
         <div className="flex flex-col items-center space-y-6">
           <motion.div
             className={`w-28 h-28 rounded-full flex items-center justify-center border-2 transition-colors ${isRecording
-                ? "border-foreground bg-foreground/5"
-                : "border-border bg-muted"
+              ? "border-foreground bg-foreground/5"
+              : "border-border bg-muted"
               }`}
             animate={isRecording ? { scale: [1, 1.05, 1] } : { scale: 1 }}
             transition={isRecording ? { repeat: Infinity, duration: 1.5 } : {}}
@@ -137,8 +187,8 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
                 variant={isRecording ? "destructive" : "default"}
                 size="lg"
                 className={`h-12 px-6 ${isRecording
-                    ? ""
-                    : "bg-foreground text-background hover:bg-foreground/90"
+                  ? ""
+                  : "bg-foreground text-background hover:bg-foreground/90"
                   }`}
               >
                 {isRecording ? (
@@ -218,22 +268,15 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
         {/* Transcription Output */}
         {(transcription || isTranscribing) && (
           <motion.div
-            className="p-4 bg-muted rounded-xl border border-border"
+            className="p-4 bg-muted rounded-xl border border-border space-y-4"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between">
               <h4 className="font-medium text-sm">Transcription</h4>
-              {transcription && (
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs">
-                    <Save className="h-3 w-3 mr-1" />
-                    Save Entry
-                  </Button>
-                </motion.div>
-              )}
             </div>
+
             {isTranscribing ? (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <motion.div
@@ -244,7 +287,34 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
                 <span className="text-sm">Processing audio...</span>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground leading-relaxed">{transcription}</p>
+              <>
+                <Input
+                  placeholder="Entry title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="mb-2"
+                />
+                <p className="text-sm text-muted-foreground leading-relaxed">{transcription}</p>
+                <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                  <Button
+                    onClick={handleSaveEntry}
+                    disabled={isSaving || !title.trim()}
+                    className="w-full bg-foreground text-background hover:bg-foreground/90"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Entry
+                      </>
+                    )}
+                  </Button>
+                </motion.div>
+              </>
             )}
           </motion.div>
         )}

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   FileText,
   Play,
@@ -15,7 +16,8 @@ import {
   Trash2,
   Edit,
   Crown,
-  MoreHorizontal
+  MoreHorizontal,
+  Loader2
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -23,23 +25,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { SubscriptionPlan } from "@/types";
+import type { SubscriptionPlan, JournalEntry } from "@/types";
 import { MOOD_CONFIG } from "@/lib/constants";
+import { useJournals } from "@/hooks/useJournals";
 
 interface JournalEntriesProps {
   userPlan: SubscriptionPlan;
   preview?: boolean;
-}
-
-interface JournalEntry {
-  id: string;
-  title: string;
-  transcription: string;
-  audioUrl?: string;
-  date: Date;
-  mood?: string;
-  tags: string[];
-  sentiment?: "positive" | "negative" | "neutral";
 }
 
 // Memoized single entry component
@@ -48,13 +40,17 @@ const JournalEntryCard = React.memo(({
   index,
   userPlan,
   playingId,
-  onPlayAudio
+  onPlayAudio,
+  onDelete,
+  isDeleting
 }: {
   entry: JournalEntry;
   index: number;
   userPlan: SubscriptionPlan;
   playingId: string | null;
   onPlayAudio: (id: string) => void;
+  onDelete: (id: string) => void;
+  isDeleting: boolean;
 }) => {
   const getMoodColor = useCallback((mood: string) => {
     const config = MOOD_CONFIG[mood as keyof typeof MOOD_CONFIG];
@@ -77,7 +73,7 @@ const JournalEntryCard = React.memo(({
           <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
             <div className="flex items-center gap-1">
               <Calendar className="h-3 w-3" />
-              {entry.date.toLocaleDateString()}
+              {new Date(entry.date).toLocaleDateString()}
             </div>
             {entry.mood && (
               <div className="flex items-center gap-1.5">
@@ -93,20 +89,22 @@ const JournalEntryCard = React.memo(({
         </div>
 
         <div className="flex items-center gap-1">
-          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => onPlayAudio(entry.id)}
-            >
-              {playingId === entry.id ? (
-                <Pause className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-            </Button>
-          </motion.div>
+          {entry.audioUrl && (
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onPlayAudio(entry.id)}
+              >
+                {playingId === entry.id ? (
+                  <Pause className="h-4 w-4" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+              </Button>
+            </motion.div>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -125,8 +123,16 @@ const JournalEntryCard = React.memo(({
                   Share
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem className="text-destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => onDelete(entry.id)}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" />
+                )}
                 Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -169,56 +175,55 @@ const JournalEntryCard = React.memo(({
 
 JournalEntryCard.displayName = "JournalEntryCard";
 
+// Loading skeleton for entries
+const JournalEntriesSkeleton = () => (
+  <div className="space-y-3">
+    {[1, 2, 3].map((i) => (
+      <div key={i} className="p-4 bg-muted/50 border border-border rounded-xl space-y-3">
+        <div className="flex items-start justify-between">
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <Skeleton className="h-8 w-8 rounded-lg" />
+        </div>
+        <Skeleton className="h-12 w-full" />
+        <div className="flex gap-2">
+          <Skeleton className="h-6 w-16 rounded-full" />
+          <Skeleton className="h-6 w-20 rounded-full" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 // Main component wrapped with React.memo
 export const JournalEntries = React.memo(({ userPlan, preview = false }: JournalEntriesProps) => {
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Memoize mock entries - in production this would come from a hook
-  const mockEntries: JournalEntry[] = useMemo(() => [
-    {
-      id: "1",
-      title: "Morning Reflections",
-      transcription: "Today feels like a fresh start. I woke up feeling grateful for the opportunities ahead...",
-      date: new Date(2024, 0, 15),
-      mood: "grateful",
-      tags: ["morning", "gratitude"],
-      sentiment: userPlan === "premium" ? "positive" : undefined,
-    },
-    {
-      id: "2",
-      title: "Challenging Day",
-      transcription: "Work was overwhelming today. I need to find better ways to manage stress...",
-      date: new Date(2024, 0, 14),
-      mood: "anxious",
-      tags: ["work", "stress"],
-      sentiment: userPlan === "premium" ? "negative" : undefined,
-    },
-    {
-      id: "3",
-      title: "Weekend Plans",
-      transcription: "Excited about the weekend. Planning to visit the new art gallery downtown...",
-      date: new Date(2024, 0, 13),
-      mood: "excited",
-      tags: ["weekend", "art"],
-      sentiment: userPlan === "premium" ? "positive" : undefined,
-    },
-  ], [userPlan]);
+  // Use real data from backend
+  const { journals, loading, error, deleteJournal, stats } = useJournals();
 
-  // Memoize displayed entries based on preview mode
+  // Memoize displayed entries
   const displayedEntries = useMemo(() =>
-    preview ? mockEntries.slice(0, 2) : mockEntries,
-    [preview, mockEntries]
+    preview ? journals.slice(0, 3) : journals,
+    [preview, journals]
   );
 
-  // Memoize callback to prevent re-renders
-  const handlePlayAudio = useCallback((entryId: string) => {
-    if (playingId === entryId) {
-      setPlayingId(null);
-    } else {
-      setPlayingId(entryId);
-      setTimeout(() => setPlayingId(null), 3000);
-    }
+  // Memoize callbacks
+  const handlePlayAudio = useCallback((id: string) => {
+    setPlayingId(playingId === id ? null : id);
   }, [playingId]);
+
+  const handleDelete = useCallback(async (id: string) => {
+    setDeletingId(id);
+    try {
+      await deleteJournal(id);
+    } finally {
+      setDeletingId(null);
+    }
+  }, [deleteJournal]);
 
   return (
     <Card className="border-border bg-card overflow-hidden">
@@ -233,16 +238,30 @@ export const JournalEntries = React.memo(({ userPlan, preview = false }: Journal
             </motion.div>
             Journal Entries
           </CardTitle>
-          {preview && (
-            <Badge variant="outline" className="text-xs">
-              Recent
-            </Badge>
-          )}
+          <Badge variant="outline" className="text-xs">
+            {loading ? '...' : journals.length} entries
+          </Badge>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          <AnimatePresence>
+      <CardContent className="space-y-3">
+        {loading ? (
+          <JournalEntriesSkeleton />
+        ) : error ? (
+          <div className="text-center py-8">
+            <p className="text-sm text-destructive mb-2">{error}</p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+          </div>
+        ) : displayedEntries.length === 0 ? (
+          <div className="text-center py-8">
+            <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+            <p className="text-sm text-muted-foreground">
+              No journal entries yet. Start recording your thoughts!
+            </p>
+          </div>
+        ) : (
+          <AnimatePresence mode="popLayout">
             {displayedEntries.map((entry, index) => (
               <JournalEntryCard
                 key={entry.id}
@@ -251,22 +270,34 @@ export const JournalEntries = React.memo(({ userPlan, preview = false }: Journal
                 userPlan={userPlan}
                 playingId={playingId}
                 onPlayAudio={handlePlayAudio}
+                onDelete={handleDelete}
+                isDeleting={deletingId === entry.id}
               />
             ))}
           </AnimatePresence>
+        )}
 
-          {preview && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-            >
-              <Button variant="outline" className="w-full mt-2">
-                View All Entries
-              </Button>
-            </motion.div>
-          )}
-        </div>
+        {!preview && journals.length > 0 && (
+          <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+            <Button variant="outline" className="w-full">
+              Load More Entries
+            </Button>
+          </motion.div>
+        )}
+
+        {userPlan === "basic" && journals.length >= 3 && (
+          <motion.div
+            className="p-4 bg-muted rounded-xl border border-border text-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Crown className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Upgrade to Premium for unlimited entries and AI analysis
+            </p>
+          </motion.div>
+        )}
       </CardContent>
     </Card>
   );
