@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Mic, MicOff, Square, Play, Pause, Download, Save, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useJournals } from "@/hooks/useJournals";
+import { transcribeAudio } from "@/lib/services/transcription";
 
 interface VoiceRecorderProps {
   isRecording: boolean;
@@ -41,7 +42,7 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" });
         setAudioBlob(audioBlob);
-        simulateTranscription();
+        performTranscription(audioBlob);
       };
 
       mediaRecorder.start();
@@ -70,17 +71,31 @@ export const VoiceRecorder = ({ isRecording, onToggleRecording }: VoiceRecorderP
     }
   };
 
-  const simulateTranscription = () => {
+  const performTranscription = async (blob: Blob) => {
     setIsTranscribing(true);
-    setTimeout(() => {
-      setTranscription("This is a simulated transcription of your voice recording. In a real app, this would be processed by a speech-to-text service.");
-      setIsTranscribing(false);
-      setTitle(`Voice Journal - ${new Date().toLocaleDateString()}`);
+    try {
+      const result = await transcribeAudio(blob);
+      if (result.success && result.text) {
+        setTranscription(result.text);
+        setTitle(`Voice Journal - ${new Date().toLocaleDateString()}`);
+        toast({
+          title: "Transcription complete",
+          description: result.usingFallback
+            ? "Using simulated transcription (add OpenAI key for real)"
+            : "Your audio has been converted to text",
+        });
+      } else {
+        throw new Error(result.error || "Transcription failed");
+      }
+    } catch (error) {
       toast({
-        title: "Transcription complete",
-        description: "Your audio has been converted to text",
+        title: "Transcription failed",
+        description: error instanceof Error ? error.message : "Could not transcribe audio",
+        variant: "destructive",
       });
-    }, 2000);
+    } finally {
+      setIsTranscribing(false);
+    }
   };
 
   const playAudio = () => {

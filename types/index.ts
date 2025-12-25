@@ -107,7 +107,10 @@ export interface ApiResponse<T> {
 
 // Transcription Types
 export interface TranscriptionResult {
-    text: string;
+    success: boolean;
+    text?: string;
+    error?: string;
+    usingFallback?: boolean;
     confidence?: number;
     duration?: number;
 }
