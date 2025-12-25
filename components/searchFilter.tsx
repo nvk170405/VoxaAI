@@ -241,12 +241,12 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
         {/* Filter Options */}
         <div className="flex gap-2 flex-wrap">
           {/* Mood Filter */}
-          <Select value={selectedMood} onValueChange={setSelectedMood}>
+          <Select value={selectedMood || "all"} onValueChange={(val) => setSelectedMood(val === "all" ? "" : val)}>
             <SelectTrigger className="w-[140px] bg-muted border-border">
               <SelectValue placeholder="Mood" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Moods</SelectItem>
+              <SelectItem value="all">All Moods</SelectItem>
               {moods.map((mood) => (
                 <SelectItem key={mood} value={mood} className="capitalize">
                   {mood}
@@ -256,13 +256,13 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
           </Select>
 
           {/* Date Range Filter */}
-          <Select value={dateRange} onValueChange={setDateRange}>
+          <Select value={dateRange || "all"} onValueChange={(val) => setDateRange(val === "all" ? "" : val)}>
             <SelectTrigger className="w-[150px] bg-muted border-border">
               <Calendar className="h-3 w-3 mr-2" />
               <SelectValue placeholder="Date Range" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Time</SelectItem>
+              <SelectItem value="all">All Time</SelectItem>
               {dateRanges.map((range) => (
                 <SelectItem key={range.value} value={range.value}>
                   {range.label}
