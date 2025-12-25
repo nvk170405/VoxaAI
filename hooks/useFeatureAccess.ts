@@ -1,28 +1,45 @@
-import { useSubscription } from "@/context/SubscriptionContext";
+'use client';
 
+import { useMemo } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { FEATURE_ACCESS } from '@/lib/constants';
+import type { SubscriptionPlan } from '@/types';
+
+interface FeatureAccess {
+  maxJournals: number;
+  maxGoals: number;
+  hasAnalytics: boolean;
+  hasAISentiment: boolean;
+  hasAIPrompts: boolean;
+  hasCloudBackup: boolean;
+  storageLimit: number;
+}
+
+/**
+ * Hook to check feature access based on user's subscription plan
+ */
 export const useFeatureAccess = () => {
-  const { plan } = useSubscription();
+  const { subscription } = useAuth();
+  const plan: SubscriptionPlan = subscription || 'basic';
 
-  const hasAccess = (feature: string): boolean => {
-    const accessMap: Record<string, "basic" | "premium"> = {
-      "multiLanguageTranscription": "premium",
-      "advancedFilters": "premium",
-      "personalizedPrompts": "premium",
-      "premiumThemes": "premium",
-      "aiSentiment": "premium",
-      "goalTracking": "premium",
-      "integrations": "premium",
-      "sharing": "premium",
-      "advancedSecurity": "premium",
-      "cloud10GB": "premium",
-      "offlineMode": "premium",
-      "gamificationAdvanced": "premium",
-      "analytics": "premium",
-    };
+  const features: FeatureAccess = useMemo(() => {
+    return FEATURE_ACCESS[plan] || FEATURE_ACCESS.basic;
+  }, [plan]);
 
-    const requiredPlan = accessMap[feature];
-    return plan === 'premium' || !requiredPlan || requiredPlan === 'basic';
+  const canAccess = (feature: keyof FeatureAccess): boolean => {
+    const value = features[feature];
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value > 0;
+    return false;
   };
 
-  return { hasAccess, plan };
+  const isPremium = plan === 'premium';
+
+  return {
+    plan,
+    features,
+    canAccess,
+    isPremium,
+    isBasic: plan === 'basic',
+  };
 };
