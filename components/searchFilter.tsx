@@ -3,14 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Search, 
-  Filter, 
-  Calendar, 
-  Hash, 
+import {
+  Search,
+  Calendar,
+  Hash,
   Crown,
   X,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import {
   Select,
@@ -64,18 +65,22 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Search className="h-5 w-5 text-primary" />
-          Search & Filter
+    <Card className="border-border bg-card">
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center">
+              <Search className="h-4 w-4 text-background" />
+            </div>
+            Search & Filter
+          </CardTitle>
           {userPlan === "premium" && (
-            <Badge className="tier-premium">
-              <Crown className="h-3 w-3 mr-1" />
+            <Badge variant="outline" className="bg-foreground text-background border-foreground text-xs">
+              <SlidersHorizontal className="h-3 w-3 mr-1" />
               Advanced
             </Badge>
           )}
-        </CardTitle>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Search Input */}
@@ -86,20 +91,23 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
               placeholder="Search your journal entries..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-10 bg-muted border-border"
             />
           </div>
-          <Button onClick={handleSearch}>
+          <Button
+            onClick={handleSearch}
+            className="bg-foreground text-background hover:bg-foreground/90"
+          >
             Search
           </Button>
         </div>
 
         {/* Basic Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="text-sm font-medium mb-2 block">Date Range</label>
+            <label className="text-sm font-medium mb-2 block text-muted-foreground">Date Range</label>
             <Select value={dateRange} onValueChange={setDateRange}>
-              <SelectTrigger>
+              <SelectTrigger className="bg-muted border-border">
                 <SelectValue placeholder="Select date range" />
               </SelectTrigger>
               <SelectContent>
@@ -113,16 +121,16 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
           </div>
 
           <div>
-            <label className="text-sm font-medium mb-2 block">Mood</label>
+            <label className="text-sm font-medium mb-2 block text-muted-foreground">Mood</label>
             <Select value={selectedMood} onValueChange={setSelectedMood}>
-              <SelectTrigger>
+              <SelectTrigger className="bg-muted border-border">
                 <SelectValue placeholder="Select mood" />
               </SelectTrigger>
               <SelectContent>
                 {moods.map((mood) => (
                   <SelectItem key={mood} value={mood}>
                     <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full mood-${mood}`} />
+                      <div className="w-2.5 h-2.5 rounded-full bg-neutral-400" />
                       <span className="capitalize">{mood}</span>
                     </div>
                   </SelectItem>
@@ -132,28 +140,33 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
           </div>
         </div>
 
-        {/* Advanced Filters (Premium) */}
+        {/* Advanced Filters Toggle (Premium) */}
         {userPlan === "premium" && (
           <>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAdvanced(!showAdvanced)}
-              >
-                <SlidersHorizontal className="h-4 w-4 mr-2" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="w-full justify-between hover:bg-muted"
+            >
+              <span className="flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4" />
                 Advanced Filters
-              </Button>
-              <Crown className="h-4 w-4 text-primary" />
-            </div>
+              </span>
+              {showAdvanced ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </Button>
 
             {showAdvanced && (
-              <div className="p-4 bg-muted rounded-lg space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-muted rounded-xl border border-border space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm font-medium mb-2 block">Themes</label>
+                    <label className="text-sm font-medium mb-2 block text-muted-foreground">Themes</label>
                     <Select value={selectedTheme} onValueChange={setSelectedTheme}>
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-background border-border">
                         <SelectValue placeholder="Select theme" />
                       </SelectTrigger>
                       <SelectContent>
@@ -170,9 +183,9 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium mb-2 block">Sentiment</label>
+                    <label className="text-sm font-medium mb-2 block text-muted-foreground">Sentiment</label>
                     <Select>
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-background border-border">
                         <SelectValue placeholder="AI sentiment" />
                       </SelectTrigger>
                       <SelectContent>
@@ -184,11 +197,11 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm font-medium mb-2 block">Word Count</label>
+                    <label className="text-sm font-medium mb-2 block text-muted-foreground">Word Count</label>
                     <Select>
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-background border-border">
                         <SelectValue placeholder="Entry length" />
                       </SelectTrigger>
                       <SelectContent>
@@ -200,9 +213,9 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium mb-2 block">Audio Available</label>
+                    <label className="text-sm font-medium mb-2 block text-muted-foreground">Audio Available</label>
                     <Select>
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-background border-border">
                         <SelectValue placeholder="Has audio" />
                       </SelectTrigger>
                       <SelectContent>
@@ -221,17 +234,17 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
         {activeFilters.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium">Active Filters:</h4>
-              <Button variant="ghost" size="sm" onClick={clearAllFilters}>
+              <h4 className="text-sm font-medium">Active Filters</h4>
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="h-7 text-xs">
                 Clear All
               </Button>
             </div>
             <div className="flex flex-wrap gap-2">
               {activeFilters.map((filter) => (
-                <Badge key={filter} variant="secondary" className="gap-1">
+                <Badge key={filter} variant="outline" className="gap-1.5 bg-muted">
                   {getFilterLabel(filter)}
-                  <X 
-                    className="h-3 w-3 cursor-pointer hover:text-destructive" 
+                  <X
+                    className="h-3 w-3 cursor-pointer hover:text-foreground"
                     onClick={() => removeFilter(filter)}
                   />
                 </Badge>
@@ -242,39 +255,43 @@ export const SearchFilters = ({ userPlan }: SearchFiltersProps) => {
 
         {/* Quick Actions */}
         <div className="flex gap-2 flex-wrap">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => addFilter("mood", "grateful")}
+            className="text-xs"
           >
             <Hash className="h-3 w-3 mr-1" />
-            Grateful entries
+            Grateful
           </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => addFilter("date", "week")}
+            className="text-xs"
           >
             <Calendar className="h-3 w-3 mr-1" />
             This week
           </Button>
           {userPlan === "premium" && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={() => addFilter("sentiment", "positive")}
+              className="text-xs"
             >
               <Crown className="h-3 w-3 mr-1" />
-              Positive vibes
+              Positive
             </Button>
           )}
         </div>
 
+        {/* Upgrade CTA for Basic */}
         {userPlan === "basic" && (
-          <div className="p-3 bg-secondary/50 rounded-lg border border-border">
+          <div className="p-4 bg-muted rounded-xl border border-border text-center">
+            <Crown className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
-              <Crown className="h-3 w-3 inline mr-1" />
-              Upgrade to Premium for advanced filters including themes, AI sentiment analysis, and custom search operators.
+              Upgrade to Premium for advanced filters and AI sentiment analysis
             </p>
           </div>
         )}

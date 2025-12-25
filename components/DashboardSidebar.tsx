@@ -1,10 +1,10 @@
-import { 
-  Home, 
-  FileText, 
-  MessageSquare, 
-  Heart, 
-  Target, 
-  BarChart3, 
+import {
+  Home,
+  FileText,
+  MessageSquare,
+  Heart,
+  Target,
+  BarChart3,
   Settings,
   Crown
 } from "lucide-react";
@@ -29,48 +29,67 @@ export const DashboardSidebar = ({ activeView, onViewChange, userPlan }: Dashboa
   ];
 
   return (
-    <div className="w-64 bg-card border-r border-border h-screen">
-      <div className="p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <MessageSquare className="h-4 w-4 text-primary-foreground" />
+    <aside className="w-64 bg-card border-r border-border h-screen flex flex-col">
+      {/* Logo Section */}
+      <div className="p-6 border-b border-border">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-foreground rounded-xl flex items-center justify-center">
+            <MessageSquare className="h-5 w-5 text-background" />
           </div>
-          <span className="font-bold text-lg">VoiceJournal</span>
+          <div>
+            <span className="font-bold text-lg tracking-tight">Voxa</span>
+            <p className="text-xs text-muted-foreground">Voice Journal</p>
+          </div>
         </div>
-        
-        <div className="mb-4">
-          <Badge 
-            variant={userPlan === "premium" ? "default" : "secondary"}
-            className={userPlan === "premium" ? "tier-premium" : "tier-basic"}
-          >
-            {userPlan === "premium" && <Crown className="h-3 w-3 mr-1" />}
-            {userPlan.charAt(0).toUpperCase() + userPlan.slice(1)} Plan
-          </Badge>
-        </div>
-        
-        <nav className="space-y-2">
-          {menuItems.map((item) => {
-            const isDisabled = item.premium && userPlan !== "premium";
-            const isActive = activeView === item.id;
-            
-            return (
-              <Button
-                key={item.id}
-                variant={isActive ? "default" : "ghost"}
-                className={`w-full justify-start gap-3 ${isDisabled ? "opacity-50" : ""}`}
-                onClick={() => !isDisabled && onViewChange(item.id)}
-                disabled={isDisabled}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-                {item.premium && userPlan !== "premium" && (
-                  <Crown className="h-3 w-3 ml-auto text-muted-foreground" />
-                )}
-              </Button>
-            );
-          })}
-        </nav>
       </div>
-    </div>
+
+      {/* Plan Badge */}
+      <div className="px-6 py-4">
+        <Badge
+          variant="outline"
+          className={`w-full justify-center py-1.5 ${userPlan === "premium"
+              ? "bg-foreground text-background border-foreground"
+              : "bg-muted text-muted-foreground border-border"
+            }`}
+        >
+          {userPlan === "premium" && <Crown className="h-3 w-3 mr-1.5" />}
+          {userPlan.charAt(0).toUpperCase() + userPlan.slice(1)} Plan
+        </Badge>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 px-3 py-2 space-y-1">
+        {menuItems.map((item) => {
+          const isDisabled = item.premium && userPlan !== "premium";
+          const isActive = activeView === item.id;
+
+          return (
+            <Button
+              key={item.id}
+              variant="ghost"
+              className={`w-full justify-start gap-3 h-11 px-4 transition-all duration-200 ${isActive
+                  ? "bg-foreground text-background hover:bg-foreground/90 hover:text-background"
+                  : "hover:bg-muted"
+                } ${isDisabled ? "opacity-40 cursor-not-allowed" : ""}`}
+              onClick={() => !isDisabled && onViewChange(item.id)}
+              disabled={isDisabled}
+            >
+              <item.icon className={`h-4 w-4 ${isActive ? "" : "text-muted-foreground"}`} />
+              <span className="font-medium">{item.label}</span>
+              {item.premium && userPlan !== "premium" && (
+                <Crown className="h-3 w-3 ml-auto text-muted-foreground" />
+              )}
+            </Button>
+          );
+        })}
+      </nav>
+
+      {/* Footer */}
+      <div className="p-4 border-t border-border">
+        <p className="text-xs text-muted-foreground text-center">
+          © 2024 Voxa
+        </p>
+      </div>
+    </aside>
   );
 };
